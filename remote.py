@@ -27,6 +27,8 @@ class remoteThread(QThread):
     def __init__(self, roomID):
         super(remoteThread, self).__init__()
         self.roomID = roomID
+        if not self.roomID.isdigit():
+            self.roomID = '0'
         if len(self.roomID) <= 3:
             if self.roomID == '0':
                 return

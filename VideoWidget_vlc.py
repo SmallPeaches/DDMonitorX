@@ -71,45 +71,51 @@ class GetMediaURL(QThread):
         self.quality = quality
 
     def getStreamUrl(self):
-        url = "https://api.live.bilibili.com/xlive/app-room/v2/index/getRoomPlayInfo"
-        onlyAudio = self.quality < 0
-        params = {
-            "appkey": "iVGUTjsxvpLeuDCf",
-            "build": 6215200,
-            "c_locale": "zh_CN",
-            "channel": "bili",
-            "codec": 0,
-            "device": "android",
-            "device_name": "VTR-AL00",
-            "dolby": 1,
-            "format": "0,2",
-            "free_type": 0,
-            "http": 1,
-            "mask": 0,
-            "mobi_app": "android",
-            "network": "wifi",
-            "no_playurl": 0,
-            "only_audio": int(onlyAudio),
-            "only_video": 0,
-            "platform": "android",
-            "play_type": 0,
-            "protocol": "0,1",
-            "qn": (onlyAudio and 10000) or (not onlyAudio and self.quality),
-            "room_id": self.roomID,
-            "s_locale": "zh_CN",
-            "statistics": "{\"appId\":1,\"platform\":3,\"version\":\"6.21.5\",\"abtest\":\"\"}",
-            "ts": int(time.time())
-        }
-        r = requests.get(url, params=params)
-        j = r.json()
-        baseUrl = j['data']['playurl_info']['playurl']['stream'][0]['format'][0]['codec'][0]['base_url']
-        extra = j['data']['playurl_info']['playurl']['stream'][0]['format'][0]['codec'][0]['url_info'][0]['extra']
-        host = j['data']['playurl_info']['playurl']['stream'][0]['format'][0]['codec'][0]['url_info'][0]['host']
-        # let base_url = jqXHR.responseJSON.data.playurl_info.playurl.stream[0].format[0].codec[0].base_url
-        # let extra = jqXHR.responseJSON.data.playurl_info.playurl.stream[0].format[0].codec[0].url_info[0].extra
-        # let host = jqXHR.responseJSON.data.playurl_info.playurl.stream[0].format[0].codec[0].url_info[0].host
-        # streamURL = host + base_url + extra
-        streamUrl = host + baseUrl + extra
+        if self.roomID.isdigit(): # bili
+            url = "https://api.live.bilibili.com/xlive/app-room/v2/index/getRoomPlayInfo"
+            onlyAudio = self.quality < 0
+            params = {
+                "appkey": "iVGUTjsxvpLeuDCf",
+                "build": 6215200,
+                "c_locale": "zh_CN",
+                "channel": "bili",
+                "codec": 0,
+                "device": "android",
+                "device_name": "VTR-AL00",
+                "dolby": 1,
+                "format": "0,2",
+                "free_type": 0,
+                "http": 1,
+                "mask": 0,
+                "mobi_app": "android",
+                "network": "wifi",
+                "no_playurl": 0,
+                "only_audio": int(onlyAudio),
+                "only_video": 0,
+                "platform": "android",
+                "play_type": 0,
+                "protocol": "0,1",
+                "qn": (onlyAudio and 10000) or (not onlyAudio and self.quality),
+                "room_id": self.roomID,
+                "s_locale": "zh_CN",
+                "statistics": "{\"appId\":1,\"platform\":3,\"version\":\"6.21.5\",\"abtest\":\"\"}",
+                "ts": int(time.time())
+            }
+            r = requests.get(url, params=params)
+            j = r.json()
+            baseUrl = j['data']['playurl_info']['playurl']['stream'][0]['format'][0]['codec'][0]['base_url']
+            extra = j['data']['playurl_info']['playurl']['stream'][0]['format'][0]['codec'][0]['url_info'][0]['extra']
+            host = j['data']['playurl_info']['playurl']['stream'][0]['format'][0]['codec'][0]['url_info'][0]['host']
+            # let base_url = jqXHR.responseJSON.data.playurl_info.playurl.stream[0].format[0].codec[0].base_url
+            # let extra = jqXHR.responseJSON.data.playurl_info.playurl.stream[0].format[0].codec[0].url_info[0].extra
+            # let host = jqXHR.responseJSON.data.playurl_info.playurl.stream[0].format[0].codec[0].url_info[0].host
+            # streamURL = host + base_url + extra
+            streamUrl = host + baseUrl + extra
+        else:
+            from getrealurl import get_stream_url
+            platform, rid = self.roomID.split(':')
+            streamUrl = get_stream_url(platform,rid)
+
         return streamUrl
 
     def run(self):
@@ -262,7 +268,10 @@ class VideoWidget(QFrame):
         self.cacheName = ''
         self.maxCacheSize = maxCacheSize
         self.saveCachePath = saveCachePath
-        self.startWithDanmu = startWithDanmu
+        if self.roomID.isdigit():
+            self.startWithDanmu = startWithDanmu
+        else:
+            self.startWithDanmu = False
 
         # 容器设置
         self.setFrameShape(QFrame.Box)
@@ -664,6 +673,8 @@ class VideoWidget(QFrame):
             if 'roomID' in text:  # 从cover拖拽新直播间
                 self.stopDanmuMessage()
                 self.roomID = text.split(':')[1]
+                if not self.roomID.isdigit():
+                    self.roomID = ':'.join(text.split(':')[1:3])
                 self.addMedia.emit([self.id, self.roomID])
                 self.mediaReload()
                 self.textBrowser.textBrowser.clear()
@@ -1025,7 +1036,8 @@ class VideoWidget(QFrame):
         self.retryTimes = 0
         self.cacheName = cacheName
         self.play.setIcon(self.style().standardIcon(QStyle.SP_MediaPause))
-        self.danmu.setRoomID(self.roomID)
+        if self.roomID.isdigit():
+            self.danmu.setRoomID(self.roomID)
         try:
             self.danmu.message.disconnect(self.playDanmu)
         except:
@@ -1107,22 +1119,32 @@ class VideoWidget(QFrame):
             self.title = '未定义的直播间'
             self.uname = '未定义'
         else:
-            r = requests.get(
-                r'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=%s' % self.roomID)
-            data = json.loads(r.text)
-            if data['message'] == '房间已加密':
-                self.title = '房间已加密'
-                self.uname = '房号: %s' % self.roomID
-            elif not data['data']:
-                self.title = '房间好像不见了-_-？'
-                self.uname = '未定义'
+            if self.roomID.isdigit():
+                # bilibili
+                r = requests.get(
+                    r'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=%s' % self.roomID)
+                data = json.loads(r.text)
+                if data['message'] == '房间已加密':
+                    self.title = '房间已加密'
+                    self.uname = '房号: %s' % self.roomID
+                elif not data['data']:
+                    self.title = '房间好像不见了-_-？'
+                    self.uname = '未定义'
+                else:
+                    data = data['data']
+                    self.liveStatus = data['room_info']['live_status']
+                    self.title = data['room_info']['title']
+                    self.uname = data['anchor_info']['base_info']['uname']
+                    if self.liveStatus != 1:
+                        self.uname = '（未开播）' + self.uname
+                # others
             else:
-                data = data['data']
-                self.liveStatus = data['room_info']['live_status']
-                self.title = data['room_info']['title']
-                self.uname = data['anchor_info']['base_info']['uname']
-                if self.liveStatus != 1:
-                    self.uname = '（未开播）' + self.uname
+                from getstreamerinfo import GetStreamerInfo
+                plat,rid = self.roomID.split(':')
+                info_api = GetStreamerInfo(plat,rid)
+                self.title,self.uname,_,_ = info_api.get_info()
+                self.liveStatus = int(info_api.onair())
+
         self.topLabel.setText(
             ('    窗口%s  %s' % (self.id + 1, self.title))[:20])
         self.titleLabel.setText(self.uname)

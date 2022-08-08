@@ -3,7 +3,7 @@ RMDIR /S /Q dist
 RMDIR /S /Q build
 pyinstaller --clean --noconfirm DDMonitor.spec
 mkdir dist\DDMonitor\logs
-copy utils\config_default.json dist\DDMonitor\utils\config.json
+copy utils\config.json dist\DDMonitor\utils\config.json
 
 rem remove useless dll
 del /F /Q dist\DDMonitor\Qt5DBus.dll

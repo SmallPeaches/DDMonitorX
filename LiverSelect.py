@@ -260,8 +260,9 @@ class CoverLabel(QLabel):
                 self.title = info[2]
             if info[4] == 1:  # 直播中
                 self.liveState = 1
-                self.downloadKeyFrame.setUrl(info[5])  # 启动下载关键帧线程
-                self.downloadKeyFrame.start()
+                if info[5]:
+                    self.downloadKeyFrame.setUrl(info[5])  # 启动下载关键帧线程
+                    self.downloadKeyFrame.start()
                 self.roomTitle = info[6]  # 房间直播标题
                 # self.setToolTip(self.roomTitle)  # 改用self.setToolTipKeyFrame里面设置tooltip
             else:  # 未开播
@@ -683,10 +684,9 @@ class AddLiverRoomWidget(QWidget):
             roomEditText = ''
             roomIDList = self.roomEdit.text().split(' ')
             for roomID in roomIDList:
-                strList = map(lambda x: x if x.isdigit() else '', roomID)
                 roomID = ''
                 digitToken = False
-                for s in strList:
+                for s in roomID:
                     if s:
                         roomID += s
                         digitToken = True
@@ -783,8 +783,7 @@ class AddLiverRoomWidget(QWidget):
         tmpList = self.roomEdit.text().strip().replace('\t', ' ').split(' ')
         roomList = {}
         for i in tmpList:
-            if i.isnumeric():
-                roomList[i] = False  # 全部统一为字符串格式的roomid
+            roomList[i] = False  # 全部统一为字符串格式的roomid
         self.roomList.emit(roomList)
         self.roomEdit.clear()
         self.hide()
@@ -860,9 +859,18 @@ class CollectLiverInfo(QThread):
     def run(self):
         logging.debug("Collecting Liver Info...")
         while 1:
+            print(self.roomIDList)
+            opRoomList = []
+            biliRoomList = []
+            for rid in self.roomIDList:
+                if rid.isdigit():
+                    biliRoomList.append(int(rid))
+                else:
+                    opRoomList.append(rid)
             try:
+                # bilibili
                 liverInfo = []
-                data = json.dumps({'ids': self.roomIDList})  # 根据直播间房号批量获取直播间信息
+                data = json.dumps({'ids': biliRoomList})  # 根据直播间房号批量获取直播间信息
                 r = requests.post(r'https://api.live.bilibili.com/room/v2/Room/get_by_ids', data=data)
                 r.encoding = 'utf8'
                 data = json.loads(r.text)['data']
@@ -874,7 +882,7 @@ class CollectLiverInfo(QThread):
                 r.encoding = 'utf8'
                 data = json.loads(r.text)['data']
                 if data:
-                    for roomID in self.roomIDList:
+                    for roomID in biliRoomList:
                         exist = False
                         for uid, info in data.items():
                             if roomID == info['room_id']:
@@ -901,6 +909,20 @@ class CollectLiverInfo(QThread):
                                 liverInfo.append([None, str(roomID), uname])
                         except Exception as e:
                             logging.error(str(e))
+                # others
+                for item in opRoomList:
+                    platform,rid = item.split(':')
+                    from getstreamerinfo import GetStreamerInfo
+                    info_api = GetStreamerInfo(platform=platform,rid=rid)
+                    if info_api.is_available():
+                        uid = '1'
+                    else:
+                        uid = 0
+                    liveStatus = int(info_api.onair()) 
+                    title,uname,face,keyFrame = info_api.get_info()
+                    exist = True
+                    liverInfo.append([uid, item, uname, face, liveStatus, keyFrame, title])
+
                 if liverInfo:
                     self.liverInfo.emit(liverInfo)
                 time.sleep(60)  # 冷却时间
@@ -940,7 +962,7 @@ class LiverPanel(QWidget):
             if not cover.topToken:
                 self.layout.addWidget(cover)
         self.roomIDDict = roomIDDict
-        self.collectLiverInfo = CollectLiverInfo(list(map(int, self.roomIDDict.keys())))  # 转成整型
+        self.collectLiverInfo = CollectLiverInfo(list(map(str, self.roomIDDict.keys())))  # 转成整型
         self.collectLiverInfo.liverInfo.connect(self.refreshRoomPanel)
         self.collectLiverInfo.start()
 
@@ -977,7 +999,7 @@ class LiverPanel(QWidget):
             self.coverList[-1].deleteCover.connect(self.deleteCover)
             self.coverList[-1].changeTopToken.connect(self.changeTop)
             self.roomIDDict[str(roomID)] = False  # 添加普通卡片 字符串类型
-        self.collectLiverInfo.setRoomIDList(list(map(int, self.roomIDDict.keys())))  # 更新需要刷新的房间列表
+        self.collectLiverInfo.setRoomIDList(list(map(str, self.roomIDDict.keys())))  # 更新需要刷新的房间列表
         self.collectLiverInfo.terminate()
         self.collectLiverInfo.wait()
         self.collectLiverInfo.start()
@@ -1030,7 +1052,7 @@ class LiverPanel(QWidget):
 
     def deleteCover(self, roomID):
         del self.roomIDDict[roomID]  # 删除roomID
-        self.collectLiverInfo.setRoomIDList(list(map(int, self.roomIDDict.keys())))  # 更新需要刷新的房间列表
+        self.collectLiverInfo.setRoomIDList(list(map(str, self.roomIDDict.keys())))  # 更新需要刷新的房间列表
         self.refreshPanel()
         self.dumpConfig.emit()  # 发送保存config信号
 
