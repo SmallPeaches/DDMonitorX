@@ -1,53 +1,11 @@
 # DD监控室
+在原基础上扩展了DD监控室的功能，实现了多平台的兼容，目前兼容虎牙、斗鱼和B站三个平台。     
+原有的README请参考https://github.com/zhimingshenjun/DD_Monitor/blob/master/README.md。    
 
-## 运行指南
+## 使用
+安装Python3.8，然后运行`pip install -r requirements.txt`安装环境。    
+然后直接按原有方法运行即可，如果需要添加新平台需要输入`<平台名称>:<房间号>`，例如`huya:kasha233`，添加B站直播和原有方法一样。    
 
-确保安装VLC, `HELP.html`内有更多解释。
-
-## 开发指南
-
-推荐在venv/anaconda环境下开发
-
-### 所需包
- - PyQt5
-
- - requests
-
- - aiowebsocket
-
- - python-vlc
-
- - pyinstaller
-
- - dnspython    
-
-   
-
-   pip安装
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-   
-
-### 打包
-
-在 `scripts` 文件夹下有各平台的打包脚本，需要在仓库根目录运行。
-
-## TODO
-
-### 全平台
- - [X] 加载热播主播时显示加载状态（在Macos上有明显卡顿）
-
-### Windows平台
- - [ ] ?
-
-### MacOS平台
- - [X] 保证程序打包后附带文件可以被访问
- - [ ] 弹幕窗口在启动后不显示
- - [X] 添加热播主播后Thread卡死
- - [ ] ~~添加主播到播放器后不会继承窗口大小，需要重整layout来激活~~ (VLC bug)
-
-### Linux平台
- - [ ] 弹幕窗口在启动后不显示
+## 目前的小问题
+- 其他平台无法显示弹幕
+- 其他平台无法调节清晰度（全都是原画）
